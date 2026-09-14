@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string>('vendedor')
   const [visitas, setVisitas] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
   const [visitaACerrar, setVisitaACerrar] = useState<any>(null)
@@ -28,13 +29,32 @@ export default function Dashboard() {
       if (!session) router.push('/')
       else {
         setUser(session.user)
-        const { data: perfil } = await supabase.from('perfiles').select('id').eq('id', session.user.id).maybeSingle()
+        
+        // 1. Verificamos si el mail está en la lista de gerentes
+        const emailPrefix = session.user.email?.split('@')[0].toLowerCase() || ''
+        const gerentesAutorizados = ['mdebernardo', 'ppasciani', 'jbirigoin', 'ignacio', 'federico', 'swarner']
+        const esGerente = gerentesAutorizados.includes(emailPrefix)
+        const rolEsperado = esGerente ? 'gerencia_cirugia' : 'vendedor'
+
+        // 2. Buscamos su perfil en la base
+        const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', session.user.id).maybeSingle()
+        
+        let currentRole = rolEsperado
+
         if (!perfil) {
+          // Si es nuevo, lo creamos con el rol correspondiente
           await supabase.from('perfiles').upsert({
             id: session.user.id, email: session.user.email,
-            nombre: session.user.user_metadata?.full_name || session.user.email, rol: 'vendedor'
+            nombre: session.user.user_metadata?.full_name || session.user.email, rol: rolEsperado
           })
+        } else if (perfil.rol !== rolEsperado && esGerente) {
+          // Si ya existía pero no era gerente y ahora debería serlo, lo actualizamos
+          await supabase.from('perfiles').update({ rol: rolEsperado }).eq('id', session.user.id)
+        } else {
+          currentRole = perfil.rol
         }
+        
+        setUserRole(currentRole)
       }
     }
     checkUser()
@@ -152,16 +172,27 @@ export default function Dashboard() {
 
   if (!user) return <div className="p-8 text-center text-gray-500">Cargando agenda...</div>
 
+  const esGerencia = userRole === 'gerencia_cirugia' || userRole === 'gerencia_mkt'
+
   return (
     <main className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         
-        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-6">
+        <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-4 rounded-xl shadow-sm mb-6 gap-4">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Mi Agenda - Cirugía</h1>
             <p className="text-sm text-gray-500">{user.email}</p>
           </div>
-          <button onClick={handleLogout} className="text-sm text-red-600 font-medium hover:bg-red-50 px-3 py-2 rounded">Cerrar sesión</button>
+          <div className="flex gap-2">
+            {esGerencia && (
+              <button onClick={() => router.push('/gerencia')} className="bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 px-4 py-2 rounded transition-colors w-full md:w-auto">
+                📊 Panel de Gerencia
+              </button>
+            )}
+            <button onClick={handleLogout} className="text-sm border border-red-200 text-red-600 font-medium hover:bg-red-50 px-4 py-2 rounded transition-colors w-full md:w-auto">
+              Cerrar sesión
+            </button>
+          </div>
         </div>
         
         <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
