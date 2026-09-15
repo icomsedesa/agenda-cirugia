@@ -14,8 +14,12 @@ export default function Dashboard() {
 
   const [showModal, setShowModal] = useState(false)
   const [visitaACerrar, setVisitaACerrar] = useState<any>(null)
-  const [fechaBase, setFechaBase] = useState(new Date())
-  const [diaSeleccionado, setDiaSeleccionado] = useState(new Date())
+  
+  // Estados para vistas y calendario
+  const [vistaActiva, setVistaActiva] = useState<'lista' | 'semana' | 'mes'>('lista')
+  const [fechaCalendario, setFechaCalendario] = useState(new Date()) // Usado para Semana y Mes
+  const [fechaBase, setFechaBase] = useState(new Date()) // Usado para Lista
+  const [diaSeleccionado, setDiaSeleccionado] = useState(new Date()) // Usado para Lista
 
   const [formData, setFormData] = useState({
     institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: ''
@@ -66,16 +70,37 @@ export default function Dashboard() {
 
   useEffect(() => { if (user) cargarVisitas() }, [user])
 
-  const obtenerLunes = (fecha: Date) => { const d = new Date(fecha); const dia = d.getDay(); const diff = d.getDate() - dia + (dia === 0 ? -6 : 1); return new Date(d.getFullYear(), d.getMonth(), diff) }
-  const lunesSemana = obtenerLunes(fechaBase)
-  const diasSemana = Array.from({ length: 5 }).map((_, i) => { const d = new Date(lunesSemana); d.setDate(d.getDate() + i); return d })
-  const cambiarSemana = (dias: number) => { const nuevaFecha = new Date(fechaBase); nuevaFecha.setDate(nuevaFecha.getDate() + dias); setFechaBase(nuevaFecha); setDiaSeleccionado(obtenerLunes(nuevaFecha)) }
+  // Helpers Generales
   const esMismoDia = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
-  
-  const visitasSemana = visitas.filter(v => { const f = new Date(v.fecha_hora); const finSemana = new Date(lunesSemana); finSemana.setDate(finSemana.getDate() + 5); return f >= lunesSemana && f < finSemana })
-  const visitasDia = visitasSemana.filter(v => esMismoDia(new Date(v.fecha_hora), diaSeleccionado))
-  const realizadasSemana = visitasSemana.filter(v => v.estado === 'realizada').length
+  const getLunes = (d: Date) => { const dd = new Date(d); const day = dd.getDay(); const diff = dd.getDate() - day + (day === 0 ? -6 : 1); return new Date(dd.getFullYear(), dd.getMonth(), diff) }
 
+  // Lógica Vista LISTA
+  const lunesSemanaLista = getLunes(fechaBase)
+  const diasSemanaLista = Array.from({ length: 5 }).map((_, i) => { const d = new Date(lunesSemanaLista); d.setDate(d.getDate() + i); return d })
+  const cambiarSemanaLista = (dias: number) => { const nuevaFecha = new Date(fechaBase); nuevaFecha.setDate(nuevaFecha.getDate() + dias); setFechaBase(nuevaFecha); setDiaSeleccionado(getLunes(nuevaFecha)) }
+  
+  const visitasSemanaLista = visitas.filter(v => { const f = new Date(v.fecha_hora); const finSemana = new Date(lunesSemanaLista); finSemana.setDate(finSemana.getDate() + 5); return f >= lunesSemanaLista && f < finSemana })
+  const visitasDiaLista = visitasSemanaLista.filter(v => esMismoDia(new Date(v.fecha_hora), diaSeleccionado))
+  const realizadasSemana = visitasSemanaLista.filter(v => v.estado === 'realizada').length
+
+  // Lógica Vista MES
+  const year = fechaCalendario.getFullYear()
+  const month = fechaCalendario.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  let firstDay = new Date(year, month, 1).getDay()
+  firstDay = firstDay === 0 ? 6 : firstDay - 1
+
+  const diasMes = []
+  for (let i = 0; i < firstDay; i++) diasMes.push(null)
+  for (let i = 1; i <= daysInMonth; i++) diasMes.push(new Date(year, month, i))
+  const cambiarMes = (offset: number) => setFechaCalendario(new Date(year, month + offset, 1))
+
+  // Lógica Vista SEMANA
+  const lunesSemanaCal = getLunes(fechaCalendario)
+  const diasSemanaCal = Array.from({length: 7}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
+  const cambiarSemanaCal = (offset: number) => { const d = new Date(fechaCalendario); d.setDate(d.getDate() + (offset * 7)); setFechaCalendario(d) }
+
+  // Acciones DB
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
 
   const guardarNuevaVisita = async (e: React.FormEvent) => {
@@ -85,17 +110,10 @@ export default function Dashboard() {
       medico: formData.medico, objetivo: formData.objetivo, fecha_hora: new Date(formData.fecha).toISOString(),
       direccion: formData.direccion, notas: formData.notas, estado: 'pendiente'
     })
-    
     if (error) { alert('Error: ' + error.message); return }
 
-    if (formData.medico && !listaMedicos.some(m => m.nombre.toLowerCase() === formData.medico.toLowerCase())) {
-      await supabase.from('medicos').insert({ nombre: formData.medico })
-      setListaMedicos([...listaMedicos, { nombre: formData.medico }].sort((a,b) => a.nombre.localeCompare(b.nombre)))
-    }
-    if (formData.institucion && !listaInstituciones.some(i => i.nombre.toLowerCase() === formData.institucion.toLowerCase())) {
-      await supabase.from('instituciones').insert({ nombre: formData.institucion })
-      setListaInstituciones([...listaInstituciones, { nombre: formData.institucion }].sort((a,b) => a.nombre.localeCompare(b.nombre)))
-    }
+    if (formData.medico && !listaMedicos.some(m => m.nombre.toLowerCase() === formData.medico.toLowerCase())) await supabase.from('medicos').insert({ nombre: formData.medico })
+    if (formData.institucion && !listaInstituciones.some(i => i.nombre.toLowerCase() === formData.institucion.toLowerCase())) await supabase.from('instituciones').insert({ nombre: formData.institucion })
 
     setShowModal(false)
     setFormData({ institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: '' })
@@ -107,10 +125,10 @@ export default function Dashboard() {
   const obtenerUbicacion = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => { setCierreData({...cierreData, lat: pos.coords.latitude, lng: pos.coords.longitude}); alert("📍 Ubicación registrada con éxito.") },
-        (err) => alert("Error al obtener ubicación: " + err.message)
+        (pos) => { setCierreData({...cierreData, lat: pos.coords.latitude, lng: pos.coords.longitude}); alert("📍 Ubicación registrada.") },
+        (err) => alert("Error GPS: " + err.message)
       )
-    } else { alert("Tu navegador no soporta geolocalización.") }
+    } else { alert("Navegador sin GPS.") }
   }
 
   const procesarCierre = async (e: React.FormEvent) => {
@@ -127,7 +145,6 @@ export default function Dashboard() {
   }
 
   if (!user) return <div className="p-8 text-center text-gray-500">Cargando agenda...</div>
-
   const esGerencia = userRole === 'gerencia' || userRole === 'super_gerencia'
 
   return (
@@ -136,53 +153,128 @@ export default function Dashboard() {
       <datalist id="lista-medicos">{listaMedicos.map((m, idx) => <option key={idx} value={m.nombre} />)}</datalist>
       <datalist id="lista-instituciones">{listaInstituciones.map((i, idx) => <option key={idx} value={i.nombre} />)}</datalist>
 
-      <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-4 rounded-xl shadow-sm mb-6 gap-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-4 rounded-xl shadow-sm mb-6 gap-4 border-l-4 border-blue-500">
           <div><h1 className="text-xl font-bold text-gray-800">Mi Agenda - Cirugía</h1><p className="text-sm text-gray-500">{user.email}</p></div>
           <div className="flex gap-2">
-            {esGerencia && (<button onClick={() => router.push('/gerencia')} className="bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 px-4 py-2 rounded transition-colors w-full md:w-auto">📊 Panel de Gerencia</button>)}
-            <button onClick={handleLogout} className="text-sm border border-red-200 text-red-600 font-medium hover:bg-red-50 px-4 py-2 rounded transition-colors w-full md:w-auto">Cerrar sesión</button>
+            {esGerencia && (<button onClick={() => router.push('/gerencia')} className="bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 px-4 py-2 rounded transition-colors">📊 Panel de Gerencia</button>)}
+            <button onClick={handleLogout} className="text-sm border border-red-200 text-red-600 font-medium hover:bg-red-50 px-4 py-2 rounded transition-colors">Cerrar sesión</button>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b">
-            <button onClick={() => cambiarSemana(-7)} className="p-2 hover:bg-gray-100 rounded">◀</button>
-            <div className="text-center"><span className="font-bold block">Semana del {lunesSemana.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span><span className="text-xs text-gray-500">{visitasSemana.length} planificadas • {realizadasSemana} realizadas</span></div>
-            <button onClick={() => cambiarSemana(7)} className="p-2 hover:bg-gray-100 rounded">▶</button>
+        {/* Controles Principales */}
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto">
+             <button onClick={() => setVistaActiva('lista')} className={`px-4 py-1 text-sm font-medium rounded transition-all flex-1 ${vistaActiva === 'lista' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
+             <button onClick={() => setVistaActiva('semana')} className={`px-4 py-1 text-sm font-medium rounded transition-all flex-1 ${vistaActiva === 'semana' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
+             <button onClick={() => setVistaActiva('mes')} className={`px-4 py-1 text-sm font-medium rounded transition-all flex-1 ${vistaActiva === 'mes' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
           </div>
-          <div className="flex divide-x">
-            {diasSemana.map((dia, idx) => {
-              const esSel = esMismoDia(dia, diaSeleccionado)
-              const visitasEsteDia = visitasSemana.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).length
-              return (
-                <button key={idx} onClick={() => setDiaSeleccionado(dia)} className={`flex-1 py-3 flex flex-col items-center ${esSel ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'}`}>
-                  <span className={`text-xs font-medium mb-1 ${esSel ? 'text-blue-800' : 'text-gray-500'}`}>{dia.toLocaleDateString('es-AR', { weekday: 'short' }).toUpperCase()}</span>
-                  <span className={`text-lg font-bold ${esSel ? 'text-blue-900' : 'text-gray-800'}`}>{dia.getDate()}</span>
-                  {visitasEsteDia > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1"></span>}
-                </button>
-              )
-            })}
-          </div>
+          <button onClick={() => { const tzOffset = new Date().getTimezoneOffset() * 60000; setFormData({...formData, fecha: (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)}); setShowModal(true) }} className="bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded hover:bg-blue-700 w-full md:w-auto">
+            + Agregar visita
+          </button>
         </div>
 
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-gray-700">Visitas del Día</h2>
-          <button onClick={() => { const tzOffset = diaSeleccionado.getTimezoneOffset() * 60000; setFormData({...formData, fecha: (new Date(diaSeleccionado.getTime() - tzOffset)).toISOString().slice(0, 16)}); setShowModal(true) }} className="bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded hover:bg-blue-700">+ Agregar visita</button>
-        </div>
+        {/* VISTA: LISTA (Diaria) */}
+        {vistaActiva === 'lista' && (
+          <>
+            <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b">
+                <button onClick={() => cambiarSemanaLista(-7)} className="p-2 hover:bg-gray-100 rounded">◀</button>
+                <div className="text-center"><span className="font-bold block">Semana del {lunesSemanaLista.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span><span className="text-xs text-gray-500">{visitasSemanaLista.length} planificadas • {realizadasSemana} realizadas</span></div>
+                <button onClick={() => cambiarSemanaLista(7)} className="p-2 hover:bg-gray-100 rounded">▶</button>
+              </div>
+              <div className="flex divide-x">
+                {diasSemanaLista.map((dia, idx) => {
+                  const esSel = esMismoDia(dia, diaSeleccionado)
+                  const visitasEsteDia = visitasSemanaLista.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).length
+                  return (
+                    <button key={idx} onClick={() => setDiaSeleccionado(dia)} className={`flex-1 py-3 flex flex-col items-center ${esSel ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'}`}>
+                      <span className={`text-xs font-medium mb-1 ${esSel ? 'text-blue-800' : 'text-gray-500'}`}>{dia.toLocaleDateString('es-AR', { weekday: 'short' }).toUpperCase()}</span>
+                      <span className={`text-lg font-bold ${esSel ? 'text-blue-900' : 'text-gray-800'}`}>{dia.getDate()}</span>
+                      {visitasEsteDia > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1"></span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <h2 className="text-lg font-bold text-gray-700 mb-4">Visitas del {diaSeleccionado.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}</h2>
+            <div className="grid gap-4">
+              {visitasDiaLista.length === 0 ? (<p className="text-center text-gray-500 bg-white p-8 rounded-xl border-2 border-dashed border-gray-200">Día libre de visitas.</p>) : (
+                visitasDiaLista.map((visita) => (
+                <div key={visita.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-3">
+                <div><h3 className="font-bold text-gray-800">{visita.medico}</h3><p className="text-sm text-gray-600">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p><p className="text-sm text-gray-500">{new Date(visita.fecha_hora).toLocaleTimeString('es-AR', { timeStyle: 'short' })}</p></div>
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded border ${visita.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : visita.estado === 'realizada' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>{visita.estado.toUpperCase()}</span>
+                  {visita.estado === 'pendiente' && (<><button onClick={() => eliminarVisita(visita.id)} className="text-sm bg-red-50 text-red-600 px-3 py-1.5 rounded hover:bg-red-100 font-medium">Eliminar</button><button onClick={() => setVisitaACerrar(visita)} className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded hover:bg-gray-700">Cerrar</button></>)}
+                </div>
+              </div>
+              )))}
+            </div>
+          </>
+        )}
 
-        <div className="grid gap-4">
-          {visitasDia.length === 0 ? (<p className="text-center text-gray-500 bg-white p-8 rounded-xl border-2 border-dashed border-gray-200">Día libre de visitas.</p>) : (
-            visitasDia.map((visita) => (
-             <div key={visita.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-3">
-             <div><h3 className="font-bold text-gray-800">{visita.medico}</h3><p className="text-sm text-gray-600">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p><p className="text-sm text-gray-500">{new Date(visita.fecha_hora).toLocaleTimeString('es-AR', { timeStyle: 'short' })}</p></div>
-             <div className="flex items-center gap-2 self-start md:self-auto">
-               <span className={`text-xs font-semibold px-2.5 py-0.5 rounded border ${visita.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : visita.estado === 'realizada' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>{visita.estado.toUpperCase()}</span>
-               {visita.estado === 'pendiente' && (<><button onClick={() => eliminarVisita(visita.id)} className="text-sm bg-red-50 text-red-600 px-3 py-1.5 rounded hover:bg-red-100 font-medium">Eliminar</button><button onClick={() => setVisitaACerrar(visita)} className="text-sm bg-gray-800 text-white px-3 py-1.5 rounded hover:bg-gray-700">Cerrar</button></>)}
-             </div>
-           </div>
-          )))}
-        </div>
+        {/* VISTA: MES */}
+        {vistaActiva === 'mes' && (
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+              <button onClick={() => cambiarMes(-1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">&lt;</button>
+              <h2 className="text-lg font-bold text-gray-800 capitalize">{fechaCalendario.toLocaleString('es-AR', { month: 'long', year: 'numeric' })}</h2>
+              <button onClick={() => cambiarMes(1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">&gt;</button>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-sm py-2">{d}</div>)}
+              {diasMes.map((dia, idx) => (
+                <div key={idx} className={`min-h-[120px] p-1 border rounded-lg ${dia ? 'bg-white' : 'bg-gray-50 border-transparent'}`}>
+                  {dia && (
+                    <>
+                      <div className="text-right text-xs text-gray-400 mb-1 pr-1">{dia.getDate()}</div>
+                      <div className="flex flex-col gap-1 max-h-[100px] overflow-y-auto custom-scrollbar">
+                        {visitas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
+                          <div key={v.id} className="text-[10px] leading-tight p-1 rounded border bg-blue-50 border-blue-200 text-blue-900 truncate" title={`${v.medico} - ${v.institucion}`}>
+                            {new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})} {v.medico}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VISTA: SEMANA */}
+        {vistaActiva === 'semana' && (
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+             <div className="flex justify-between items-center mb-6 min-w-[700px]">
+              <button onClick={() => cambiarSemanaCal(-1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">&lt;</button>
+              <h2 className="text-lg font-bold text-gray-800">Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[6].toLocaleDateString('es-AR')}</h2>
+              <button onClick={() => cambiarSemanaCal(1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">&gt;</button>
+            </div>
+            <div className="grid grid-cols-7 gap-4 min-w-[700px]">
+              {diasSemanaCal.map((dia, idx) => (
+                <div key={idx} className="flex flex-col gap-2">
+                  <div className={`text-center pb-2 border-b ${esMismoDia(dia, new Date()) ? 'border-blue-500' : ''}`}>
+                    <span className="block text-sm font-bold text-gray-500">{['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][idx]}</span>
+                    <span className={`text-xl ${esMismoDia(dia, new Date()) ? 'text-blue-600 font-black' : 'text-gray-700'}`}>{dia.getDate()}</span>
+                  </div>
+                  <div className="flex flex-col gap-2 min-h-[300px]">
+                    {visitas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
+                      <div key={v.id} className="text-xs p-2 rounded-lg border shadow-sm bg-blue-50 border-blue-200 text-blue-900">
+                        <div className="font-bold truncate" title={v.medico}>{v.medico}</div>
+                        <div className="truncate opacity-90" title={v.institucion}>{v.institucion}</div>
+                        <div className="mt-1 opacity-75 font-medium flex justify-between">
+                          {new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}
+                          {v.estado === 'pendiente' && (<button onClick={() => setVisitaACerrar(v)} className="underline text-blue-700 hover:text-blue-900">Cerrar</button>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Formulario Completo - Nueva Visita */}
         {showModal && (
@@ -244,6 +336,7 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+      <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}} />
     </main>
   )
 }
