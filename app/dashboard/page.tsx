@@ -14,6 +14,7 @@ export default function Dashboard() {
 
   const [showModal, setShowModal] = useState(false)
   const [visitaACerrar, setVisitaACerrar] = useState<any>(null)
+  const [visitaDetalle, setVisitaDetalle] = useState<any>(null) // Nuevo estado para detalle
   
   const [vistaActiva, setVistaActiva] = useState<'lista' | 'semana' | 'mes'>('lista')
   const [fechaCalendario, setFechaCalendario] = useState(new Date()) 
@@ -190,7 +191,7 @@ export default function Dashboard() {
             <div className="grid gap-4">
               {visitasDiaLista.length === 0 ? (<p className="text-center text-gray-400 bg-white p-10 rounded-2xl border border-dashed border-gray-200 font-bold">Día libre de visitas.</p>) : (
                 visitasDiaLista.map((visita) => (
-                <div key={visita.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-[#88B830] transition-colors">
+                <div key={visita.id} onClick={() => setVisitaDetalle(visita)} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-[#88B830] transition-colors cursor-pointer">
                 <div>
                   <h3 className="font-bold text-[#004848] text-lg">{visita.medico}</h3>
                   <p className="text-sm text-gray-500 font-bold">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p>
@@ -200,8 +201,8 @@ export default function Dashboard() {
                   <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visita.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visita.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visita.estado.toUpperCase()}</span>
                   {visita.estado === 'pendiente' && (
                     <div className="flex gap-2">
-                      <button onClick={() => eliminarVisita(visita.id)} className="text-xs bg-white border border-red-200 text-red-600 px-4 py-2 rounded-xl hover:bg-red-50 font-bold transition-colors">Eliminar</button>
-                      <button onClick={() => setVisitaACerrar(visita)} className="text-xs bg-[#004848] text-white px-4 py-2 rounded-xl hover:bg-[#003838] font-bold transition-colors">Cerrar</button>
+                      <button onClick={(e) => { e.stopPropagation(); eliminarVisita(visita.id); }} className="text-xs bg-white border border-red-200 text-red-600 px-4 py-2 rounded-xl hover:bg-red-50 font-bold transition-colors">Eliminar</button>
+                      <button onClick={(e) => { e.stopPropagation(); setVisitaACerrar(visita); }} className="text-xs bg-[#004848] text-white px-4 py-2 rounded-xl hover:bg-[#003838] font-bold transition-colors">Cerrar</button>
                     </div>
                   )}
                 </div>
@@ -228,7 +229,7 @@ export default function Dashboard() {
                       <div className="text-right text-xs font-bold text-gray-400 mb-2 pr-1">{dia.getDate()}</div>
                       <div className="flex flex-col gap-1.5 max-h-[100px] overflow-y-auto custom-scrollbar">
                         {visitas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                          <div key={v.id} className="text-[10px] font-bold leading-tight p-1.5 rounded-lg border bg-[#004848]/5 border-[#004848]/10 text-[#004848] truncate" title={`${v.medico} - ${v.institucion}`}>
+                          <div key={v.id} onClick={() => setVisitaDetalle(v)} className="text-[10px] font-bold leading-tight p-1.5 rounded-lg border bg-[#004848]/5 border-[#004848]/10 text-[#004848] truncate cursor-pointer hover:bg-[#004848]/10 transition-colors" title={`${v.medico} - ${v.institucion}`}>
                             <span className="opacity-70 mr-1">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</span>{v.medico}
                           </div>
                         ))}
@@ -258,12 +259,12 @@ export default function Dashboard() {
                   </div>
                   <div className="flex flex-col gap-2.5 min-h-[300px]">
                     {visitas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                      <div key={v.id} className="text-xs p-3 rounded-xl border shadow-sm bg-white border-gray-100 text-[#004848] hover:border-[#88B830] transition-colors">
+                      <div key={v.id} onClick={() => setVisitaDetalle(v)} className="text-xs p-3 rounded-xl border shadow-sm bg-white border-gray-100 text-[#004848] hover:border-[#88B830] transition-colors cursor-pointer">
                         <div className="font-bold truncate text-[13px]" title={v.medico}>{v.medico}</div>
                         <div className="truncate opacity-70 font-bold mt-0.5" title={v.institucion}>{v.institucion}</div>
                         <div className="mt-2 font-bold opacity-60 flex justify-between items-center">
                           {new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}
-                          {v.estado === 'pendiente' && (<button onClick={() => setVisitaACerrar(v)} className="underline hover:text-[#88B830]">Cerrar</button>)}
+                          {v.estado === 'pendiente' && (<button onClick={(e) => { e.stopPropagation(); setVisitaACerrar(v); }} className="underline hover:text-[#88B830]">Cerrar</button>)}
                         </div>
                       </div>
                     ))}
@@ -334,6 +335,73 @@ export default function Dashboard() {
                 
                 <div className="flex gap-3 justify-end mt-4 pt-5 border-t border-gray-100"><button type="button" onClick={() => setVisitaACerrar(null)} className="px-6 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-colors">Cancelar</button><button type="submit" className="px-6 py-3 text-sm font-bold bg-[#004848] text-white rounded-xl hover:bg-[#003838] transition-colors shadow-sm">Confirmar Cierre</button></div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* NUEVO MODAL: DETALLE DE VISITA (VENDEDOR) */}
+        {visitaDetalle && (
+          <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-8 relative">
+              <button onClick={() => setVisitaDetalle(null)} className="absolute top-6 right-6 text-gray-400 hover:text-[#004848] text-2xl font-bold leading-none">&times;</button>
+              
+              <h3 className="text-2xl font-bold mb-2 text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Detalle de Visita</h3>
+              
+              <div className="flex gap-3 items-center mb-6 border-b border-gray-100 pb-4">
+                 <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visitaDetalle.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visitaDetalle.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visitaDetalle.estado.toUpperCase()}</span>
+                 <span className="text-sm font-bold text-gray-400">{new Date(visitaDetalle.fecha_hora).toLocaleString('es-AR', { dateStyle:'long', timeStyle:'short' })}</span>
+              </div>
+              
+              <div className="grid gap-4 text-[#004848]">
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Médico e Institución</p>
+                    <p className="font-bold text-xl mb-1">{visitaDetalle.medico}</p>
+                    <p className="font-bold opacity-70">{visitaDetalle.institucion} {visitaDetalle.servicio && `- ${visitaDetalle.servicio}`}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Objetivo</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.objetivo || '-'}</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Dirección</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.direccion || '-'}</p>
+                  </div>
+                </div>
+
+                {visitaDetalle.notas && (
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notas Internas</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.notas}</p>
+                  </div>
+                )}
+                
+                {/* Resultados si está cerrada */}
+                {visitaDetalle.estado === 'realizada' && (
+                  <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
+                    <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <p><span className="font-bold opacity-70 block mb-1">Duración:</span> <span className="font-bold">{visitaDetalle.resultado_duracion} min</span></p>
+                      <p><span className="font-bold opacity-70 block mb-1">Objetivo Logrado:</span> <span className="font-bold">{visitaDetalle.resultado_logrado ? 'Sí' : 'No'}</span></p>
+                    </div>
+                    {visitaDetalle.resultado_motivo && <p className="mb-3"><span className="font-bold opacity-70 block mb-1">Motivo:</span> <span className="font-bold">{visitaDetalle.resultado_motivo}</span></p>}
+                    {visitaDetalle.resultado_takeaways && <p className="mb-3"><span className="font-bold opacity-70 block mb-1">Takeaways:</span> <span className="font-bold">{visitaDetalle.resultado_takeaways}</span></p>}
+                    {(visitaDetalle.ubicacion_lat && visitaDetalle.ubicacion_lng) && (
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${visitaDetalle.ubicacion_lat},${visitaDetalle.ubicacion_lng}`} target="_blank" rel="noreferrer" className="inline-block mt-2 px-4 py-2 bg-white border border-[#88B830] text-[#004848] rounded-lg text-xs font-bold hover:bg-[#88B830] hover:text-white transition-colors">
+                        📍 Ver en Google Maps
+                      </a>
+                    )}
+                  </div>
+                )}
+                
+                {(visitaDetalle.estado === 'cancelada' || visitaDetalle.estado === 'reprogramada') && (
+                  <div className="bg-orange-50 p-5 rounded-xl border border-orange-200">
+                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Motivo / Detalles</p>
+                    <p className="font-bold text-orange-900">{visitaDetalle.resultado_motivo || '-'}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

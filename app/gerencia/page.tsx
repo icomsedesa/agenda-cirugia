@@ -15,6 +15,8 @@ export default function Gerencia() {
   const [listaInstituciones, setListaInstituciones] = useState<any[]>([])
 
   const [showModal, setShowModal] = useState(false)
+  const [visitaDetalle, setVisitaDetalle] = useState<any>(null) // Nuevo estado para ver detalles
+
   const [formData, setFormData] = useState({ vendedor_id: '', institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: '' })
   
   const [vistaActiva, setVistaActiva] = useState<'lista' | 'semana' | 'mes'>('lista')
@@ -28,7 +30,7 @@ export default function Gerencia() {
     ignacio: ['angelina', 'ffernandez', 'ignacio']
   }
 
-  // Colores para diferenciar a los distintos vendedores en el calendario
+  // Colores para vendedores
   const colores = [
     'bg-blue-50 border-blue-200 text-blue-700', 'bg-rose-50 border-rose-200 text-rose-700',
     'bg-emerald-50 border-emerald-200 text-emerald-700', 'bg-purple-50 border-purple-200 text-purple-700',
@@ -154,20 +156,12 @@ export default function Gerencia() {
           </div>
         </div>
 
-        {/* CONTROLES GLOBALES */}
+        {/* CONTROLES PRINCIPALES (Sin el select) */}
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-3 items-center w-full md:w-auto px-2">
-            <label className="font-bold text-[#004848] text-xs uppercase tracking-wider">Equipo:</label>
-            <select value={vendedorSeleccionado} onChange={(e) => setVendedorSeleccionado(e.target.value)} className="border-none bg-[#f4f7f6] rounded-xl p-2.5 text-sm font-bold text-[#004848] w-full md:w-auto focus:ring-0 cursor-pointer">
-              {user.rol === 'super_gerencia' && <option value="todos">Todo el equipo</option>}
-              {user.rol === 'gerencia' && <option value="todos">Mi equipo</option>}
-              {vendedoresOrdenados.map(v => <option key={v.id} value={v.id}>{v.nombre || v.email}</option>)}
-            </select>
-          </div>
-          <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl">
-             <button onClick={() => setVistaActiva('lista')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'lista' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
-             <button onClick={() => setVistaActiva('semana')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'semana' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
-             <button onClick={() => setVistaActiva('mes')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'mes' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
+          <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl ml-auto md:ml-0 w-full md:w-auto">
+             <button onClick={() => setVistaActiva('lista')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'lista' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
+             <button onClick={() => setVistaActiva('semana')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'semana' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
+             <button onClick={() => setVistaActiva('mes')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'mes' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
             <button onClick={() => setShowModal(true)} className="bg-[#88B830] text-[#004848] text-sm font-bold py-3 px-6 rounded-xl hover:bg-[#7aa62b] shadow-sm transition-colors w-full md:w-auto">+ Asignar visita</button>
@@ -183,17 +177,27 @@ export default function Gerencia() {
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Duración Promedio</p><p className="text-4xl font-bold text-[#004848]">{duracionPromedio} <span className="text-sm font-bold text-gray-400">min</span></p></div>
         </div>
 
-        {/* LEYENDA */}
-        {(vistaActiva === 'mes' || vistaActiva === 'semana') && vendedorSeleccionado === 'todos' && (
-          <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">Vendedores:</span>
-            {vendedoresOrdenados.map(v => (
-              <span key={v.id} className={`text-xs font-bold px-3 py-1.5 rounded-lg border shadow-sm ${obtenerColorVendedor(v.id)}`}>
-                {v.nombre || v.email.split('@')[0]}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* BOTONERA DE FILTROS POR VENDEDOR */}
+        <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">Filtro por Vendedor:</span>
+          
+          <button 
+            onClick={() => setVendedorSeleccionado('todos')}
+            className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+          >
+            Todos
+          </button>
+          
+          {vendedoresOrdenados.map(v => (
+            <button 
+              key={v.id}
+              onClick={() => setVendedorSeleccionado(v.id)}
+              className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}
+            >
+              {v.nombre || v.email.split('@')[0]}
+            </button>
+          ))}
+        </div>
 
         {/* VISTA: LISTA */}
         {vistaActiva === 'lista' && (
@@ -201,7 +205,7 @@ export default function Gerencia() {
             {visitasFiltradas.map((visita) => {
               const vendedor = perfiles.find(p => p.id === visita.vendedor_id)
               return (
-                <div key={visita.id} className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 ${obtenerColorVendedor(visita.vendedor_id).split(' ')[0].replace('bg-', 'border-')} flex flex-col md:flex-row justify-between md:items-center gap-4 hover:shadow-md transition-shadow`}>
+                <div key={visita.id} onClick={() => setVisitaDetalle(visita)} className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 ${obtenerColorVendedor(visita.vendedor_id).split(' ')[0].replace('bg-', 'border-')} flex flex-col md:flex-row justify-between md:items-center gap-4 hover:shadow-md transition-shadow cursor-pointer`}>
                   <div>
                     <h3 className="font-bold text-[#004848] text-lg">{visita.medico}</h3>
                     <p className="text-sm text-gray-500 font-bold">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p>
@@ -234,7 +238,7 @@ export default function Gerencia() {
                       <div className="text-right text-xs font-bold text-gray-400 mb-2 pr-1">{dia.getDate()}</div>
                       <div className="flex flex-col gap-1.5 max-h-[100px] overflow-y-auto custom-scrollbar">
                         {visitasFiltradas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                          <div key={v.id} className={`text-[10px] font-bold leading-tight p-1.5 rounded-lg border truncate ${obtenerColorVendedor(v.vendedor_id)}`} title={`${v.medico} - ${v.institucion}`}>
+                          <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-[10px] font-bold leading-tight p-1.5 rounded-lg border truncate cursor-pointer hover:opacity-75 ${obtenerColorVendedor(v.vendedor_id)}`} title={`${v.medico} - ${v.institucion}`}>
                             <span className="opacity-70 mr-1">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</span>{v.medico}
                           </div>
                         ))}
@@ -264,7 +268,7 @@ export default function Gerencia() {
                   </div>
                   <div className="flex flex-col gap-2.5 min-h-[300px]">
                     {visitasFiltradas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                      <div key={v.id} className={`text-xs p-3 rounded-xl border shadow-sm hover:opacity-80 transition-opacity ${obtenerColorVendedor(v.vendedor_id)}`}>
+                      <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-xs p-3 rounded-xl border shadow-sm hover:opacity-80 transition-opacity cursor-pointer ${obtenerColorVendedor(v.vendedor_id)}`}>
                         <div className="font-bold truncate text-[13px]" title={v.medico}>{v.medico}</div>
                         <div className="truncate opacity-70 font-bold mt-0.5" title={v.institucion}>{v.institucion}</div>
                         <div className="mt-2 font-bold opacity-60">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
@@ -307,6 +311,80 @@ export default function Gerencia() {
             </div>
           </div>
         )}
+
+        {/* NUEVO MODAL: DETALLE DE VISITA */}
+        {visitaDetalle && (
+          <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-8 relative">
+              <button onClick={() => setVisitaDetalle(null)} className="absolute top-6 right-6 text-gray-400 hover:text-[#004848] text-2xl font-bold leading-none">&times;</button>
+              
+              <h3 className="text-2xl font-bold mb-2 text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Detalle de Visita</h3>
+              
+              <div className="flex gap-3 items-center mb-6 border-b border-gray-100 pb-4">
+                 <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visitaDetalle.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visitaDetalle.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visitaDetalle.estado.toUpperCase()}</span>
+                 <span className="text-sm font-bold text-gray-400">{new Date(visitaDetalle.fecha_hora).toLocaleString('es-AR', { dateStyle:'long', timeStyle:'short' })}</span>
+              </div>
+              
+              <div className="grid gap-4 text-[#004848]">
+                
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Médico e Institución</p>
+                    <p className="font-bold text-xl mb-1">{visitaDetalle.medico}</p>
+                    <p className="font-bold opacity-70">{visitaDetalle.institucion} {visitaDetalle.servicio && `- ${visitaDetalle.servicio}`}</p>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Vendedor Asignado</p>
+                    <p className="font-bold text-lg">{perfiles.find(p => p.id === visitaDetalle.vendedor_id)?.nombre || perfiles.find(p => p.id === visitaDetalle.vendedor_id)?.email || visitaDetalle.vendedor_id}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Objetivo</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.objetivo || '-'}</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Dirección</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.direccion || '-'}</p>
+                  </div>
+                </div>
+
+                {visitaDetalle.notas && (
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notas Internas</p>
+                      <p className="font-bold opacity-90">{visitaDetalle.notas}</p>
+                  </div>
+                )}
+                
+                {/* Resultados si está cerrada */}
+                {visitaDetalle.estado === 'realizada' && (
+                  <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
+                    <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <p><span className="font-bold opacity-70 block mb-1">Duración:</span> <span className="font-bold">{visitaDetalle.resultado_duracion} min</span></p>
+                      <p><span className="font-bold opacity-70 block mb-1">Objetivo Logrado:</span> <span className="font-bold">{visitaDetalle.resultado_logrado ? 'Sí' : 'No'}</span></p>
+                    </div>
+                    {visitaDetalle.resultado_motivo && <p className="mb-3"><span className="font-bold opacity-70 block mb-1">Motivo:</span> <span className="font-bold">{visitaDetalle.resultado_motivo}</span></p>}
+                    {visitaDetalle.resultado_takeaways && <p className="mb-3"><span className="font-bold opacity-70 block mb-1">Takeaways:</span> <span className="font-bold">{visitaDetalle.resultado_takeaways}</span></p>}
+                    {(visitaDetalle.ubicacion_lat && visitaDetalle.ubicacion_lng) && (
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${visitaDetalle.ubicacion_lat},${visitaDetalle.ubicacion_lng}`} target="_blank" rel="noreferrer" className="inline-block mt-2 px-4 py-2 bg-white border border-[#88B830] text-[#004848] rounded-lg text-xs font-bold hover:bg-[#88B830] hover:text-white transition-colors">
+                        📍 Ver en Google Maps
+                      </a>
+                    )}
+                  </div>
+                )}
+                
+                {(visitaDetalle.estado === 'cancelada' || visitaDetalle.estado === 'reprogramada') && (
+                  <div className="bg-orange-50 p-5 rounded-xl border border-orange-200">
+                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Motivo / Detalles</p>
+                    <p className="font-bold text-orange-900">{visitaDetalle.resultado_motivo || '-'}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
       <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}} />
     </main>
