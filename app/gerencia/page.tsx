@@ -141,13 +141,13 @@ export default function Gerencia() {
     const objLog = vVisitas.filter(vis => vis.resultado_logrado === true).length
     const porcObj = real > 0 ? Math.round((objLog / real) * 100) : 0
 
-    // Promedio Visitas / Día Hábil (Basado en los días hábiles del mes actual hasta hoy)
+    // Promedio Visitas / Día Hábil
     const daysPassed = new Date().getDate()
     let workingDays = 0
     for(let i = 1; i <= daysPassed; i++) {
         if(new Date(new Date().getFullYear(), new Date().getMonth(), i).getDay() !== 0) workingDays++
     }
-    workingDays = workingDays || 1 // Evitar división por cero
+    workingDays = workingDays || 1 
     const realCurrentMonth = vVisitas.filter(vis => vis.estado === 'realizada' && new Date(vis.fecha_hora).getMonth() === new Date().getMonth()).length
     const promDia = Number((realCurrentMonth / workingDays).toFixed(1))
 
@@ -241,7 +241,7 @@ export default function Gerencia() {
           <button onClick={() => setVendedorSeleccionado('todos')} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>Todos</button>
           {vendedoresOrdenados.map(v => (
             <button key={v.id} onClick={() => setVendedorSeleccionado(v.id)} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}>
-              {v.nombreDisplay}
+              {v.nombre || v.email?.split('@')[0]}
             </button>
           ))}
         </div>
@@ -328,8 +328,6 @@ export default function Gerencia() {
           </div>
         )}
 
-        {/* MODALES OMITIDOS PARA BREVEDAD (Asignar y Detalle siguen idénticos al anterior) */}
-        {/* Aquí van los 2 modales de la versión anterior */}
         {/* MODAL ASIGNAR VISITA */}
         {showModal && (
           <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -375,6 +373,7 @@ export default function Gerencia() {
               </div>
               
               <div className="grid gap-4 text-[#004848]">
+                
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Médico e Institución</p>
                     <p className="font-bold text-xl mb-1">{visitaDetalle.medico}</p>
@@ -404,6 +403,7 @@ export default function Gerencia() {
                   </div>
                 )}
                 
+                {/* Resultados si está cerrada */}
                 {visitaDetalle.estado === 'realizada' && (
                   <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
                     <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
@@ -423,7 +423,7 @@ export default function Gerencia() {
                 
                 {(visitaDetalle.estado === 'cancelada' || visitaDetalle.estado === 'reprogramada') && (
                   <div className="bg-orange-50 p-5 rounded-xl border border-orange-200">
-                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Detalles / Reprogramación</p>
+                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Motivo / Detalles</p>
                     <p className="font-bold text-orange-900">{visitaDetalle.resultado_motivo || '-'}</p>
                   </div>
                 )}
@@ -431,6 +431,7 @@ export default function Gerencia() {
             </div>
           </div>
         )}
+
       </div>
       <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}} />
     </main>
