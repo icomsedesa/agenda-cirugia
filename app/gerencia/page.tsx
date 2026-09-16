@@ -15,7 +15,7 @@ export default function Gerencia() {
   const [listaInstituciones, setListaInstituciones] = useState<any[]>([])
 
   const [showModal, setShowModal] = useState(false)
-  const [visitaDetalle, setVisitaDetalle] = useState<any>(null) // Nuevo estado para ver detalles
+  const [visitaDetalle, setVisitaDetalle] = useState<any>(null)
 
   const [formData, setFormData] = useState({ vendedor_id: '', institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: '' })
   
@@ -30,7 +30,6 @@ export default function Gerencia() {
     ignacio: ['angelina', 'ffernandez', 'ignacio']
   }
 
-  // Colores para vendedores
   const colores = [
     'bg-blue-50 border-blue-200 text-blue-700', 'bg-rose-50 border-rose-200 text-rose-700',
     'bg-emerald-50 border-emerald-200 text-emerald-700', 'bg-purple-50 border-purple-200 text-purple-700',
@@ -38,33 +37,31 @@ export default function Gerencia() {
     'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700', 'bg-lime-50 border-lime-200 text-lime-700'
   ]
 
-  const cargarVisitas = async () => {
-    const { data } = await supabase.from('visitas').select('*').order('fecha_hora', { ascending: false })
-    if (data) setVisitas(data)
-  }
-
   useEffect(() => {
     const initData = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/'); return }
-
       const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', session.user.id).single()
       if (!perfil || (perfil.rol !== 'gerencia' && perfil.rol !== 'super_gerencia')) { router.push('/dashboard'); return }
       setUser(perfil)
-
       const { data: listaPerfiles } = await supabase.from('perfiles').select('*')
       if (listaPerfiles) setPerfiles(listaPerfiles)
-
       const { data: medicos } = await supabase.from('medicos').select('nombre').order('nombre')
       const { data: inst } = await supabase.from('instituciones').select('nombre').order('nombre')
       if (medicos) setListaMedicos(medicos)
       if (inst) setListaInstituciones(inst)
 
-      await cargarVisitas()
+      const { data } = await supabase.from('visitas').select('*').order('fecha_hora', { ascending: false })
+      if (data) setVisitas(data)
       setCargando(false)
     }
     initData()
   }, [router])
+
+  const cargarVisitas = async () => {
+    const { data } = await supabase.from('visitas').select('*').order('fecha_hora', { ascending: false })
+    if (data) setVisitas(data)
+  }
 
   const exportarExcel = () => {
     const cabeceras = ['Fecha', 'Vendedor', 'Médico', 'Institución', 'Estado', 'Objetivo Logrado', 'Duración (min)', 'Motivo']
@@ -73,26 +70,22 @@ export default function Gerencia() {
       return [new Date(v.fecha_hora).toLocaleDateString('es-AR'), vendedor ? (vendedor.nombre || vendedor.email) : 'Desconocido', v.medico, v.institucion || '', v.estado, v.resultado_logrado ? 'Sí' : (v.resultado_logrado === false ? 'No' : ''), v.resultado_duracion || '', v.resultado_motivo || ''].join(';')
     })
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [cabeceras.join(';'), ...filas].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Reporte_Visitas_${new Date().toLocaleDateString('es-AR')}.csv`)
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `Reporte_Visitas.csv`)
     document.body.appendChild(link); link.click(); document.body.removeChild(link)
   }
 
   const guardarNuevaVisita = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.vendedor_id) return alert("Por favor, seleccioná un vendedor.")
-    const { error } = await supabase.from('visitas').insert({
+    await supabase.from('visitas').insert({
       vendedor_id: formData.vendedor_id, institucion: formData.institucion, servicio: formData.servicio,
       medico: formData.medico, objetivo: formData.objetivo, fecha_hora: new Date(formData.fecha).toISOString(),
       direccion: formData.direccion, notas: formData.notas, estado: 'pendiente'
     })
-    if (!error) {
-      if (formData.medico && !listaMedicos.some(m => m.nombre.toLowerCase() === formData.medico.toLowerCase())) await supabase.from('medicos').insert({ nombre: formData.medico })
-      if (formData.institucion && !listaInstituciones.some(i => i.nombre.toLowerCase() === formData.institucion.toLowerCase())) await supabase.from('instituciones').insert({ nombre: formData.institucion })
-      setShowModal(false)
-      setFormData({ vendedor_id: '', institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: '' })
-      cargarVisitas()
-    }
+    if (formData.medico && !listaMedicos.some(m => m.nombre.toLowerCase() === formData.medico.toLowerCase())) await supabase.from('medicos').insert({ nombre: formData.medico })
+    if (formData.institucion && !listaInstituciones.some(i => i.nombre.toLowerCase() === formData.institucion.toLowerCase())) await supabase.from('instituciones').insert({ nombre: formData.institucion })
+    setShowModal(false); setFormData({ vendedor_id: '', institucion: '', servicio: '', medico: '', objetivo: '', fecha: '', direccion: '', notas: '' })
+    cargarVisitas()
   }
 
   if (cargando) return <div className="p-8 text-center text-[#004848] font-bold tracking-wide">Cargando Panel Gerencial...</div>
@@ -105,7 +98,6 @@ export default function Gerencia() {
   }
 
   const vendedoresOrdenados = [...listaVendedoresPermitidos].sort((a,b) => (a.nombre || a.email).localeCompare(b.nombre || b.email))
-  
   const obtenerColorVendedor = (vendedor_id: string) => {
     const index = vendedoresOrdenados.findIndex(v => v.id === vendedor_id)
     return index >= 0 ? colores[index % colores.length] : 'bg-gray-50 border-gray-200 text-gray-700'
@@ -115,32 +107,54 @@ export default function Gerencia() {
     ? visitas.filter(v => listaVendedoresPermitidos.some(p => p.id === v.vendedor_id))
     : visitas.filter(v => v.vendedor_id === vendedorSeleccionado)
 
-  // MES
+  // LOGICA CALENDARIO 6 DÍAS (Lun-Sab)
+  const esMismoDia = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
+  const getLunes = (d: Date) => { const dd = new Date(d); const day = dd.getDay(); const diff = dd.getDate() - day + (day === 0 ? -6 : 1); return new Date(dd.getFullYear(), dd.getMonth(), diff) }
+  
+  // Mes 6 días
   const year = fechaCalendario.getFullYear()
   const month = fechaCalendario.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   let firstDay = new Date(year, month, 1).getDay()
-  firstDay = firstDay === 0 ? 6 : firstDay - 1
-
+  if (firstDay === 0) firstDay = 1
+  firstDay = firstDay - 1
   const diasMes = []
   for (let i = 0; i < firstDay; i++) diasMes.push(null)
-  for (let i = 1; i <= daysInMonth; i++) diasMes.push(new Date(year, month, i))
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(year, month, i)
+    if (d.getDay() !== 0) diasMes.push(d) // Excluir domingo
+  }
 
-  // SEMANA
-  const getLunes = (d: Date) => { const dd = new Date(d); const day = dd.getDay(); const diff = dd.getDate() - day + (day === 0 ? -6 : 1); return new Date(dd.getFullYear(), dd.getMonth(), diff) }
+  // Semana 6 días
   const lunesSemanaCal = getLunes(fechaCalendario)
-  const diasSemanaCal = Array.from({length: 7}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
+  const diasSemanaCal = Array.from({length: 6}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
   
-  const esMismoDia = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
   const cambiarMes = (offset: number) => setFechaCalendario(new Date(year, month + offset, 1))
   const cambiarSemanaCal = (offset: number) => { const d = new Date(fechaCalendario); d.setDate(d.getDate() + (offset * 7)); setFechaCalendario(d) }
 
-  // METRICAS
-  const totalPlanificadas = visitasFiltradas.length
-  const totalRealizadas = visitasFiltradas.filter(v => v.estado === 'realizada').length
-  const totalLogradas = visitasFiltradas.filter(v => v.resultado_logrado === true).length
-  const porcentajeCumplimiento = totalRealizadas > 0 ? Math.round((totalLogradas / totalRealizadas) * 100) : 0
-  const duracionPromedio = totalRealizadas > 0 ? Math.round(visitasFiltradas.reduce((acc, v) => acc + (v.resultado_duracion || 0), 0) / totalRealizadas) : 0
+  // LOGICA METRICAS
+  const statsVendedores = vendedoresOrdenados.map(v => {
+    const vVisitas = visitas.filter(vis => vis.vendedor_id === v.id)
+    const plan = vVisitas.length
+    const real = vVisitas.filter(vis => vis.estado === 'realizada').length
+    const cumpl = plan > 0 ? Math.round((real / plan) * 100) : 0
+    const objLog = vVisitas.filter(vis => vis.resultado_logrado === true).length
+    const porcObj = real > 0 ? Math.round((objLog / real) * 100) : 0
+
+    // Promedio Visitas / Día Hábil (Basado en los días hábiles del mes actual hasta hoy)
+    const daysPassed = new Date().getDate()
+    let workingDays = 0
+    for(let i = 1; i <= daysPassed; i++) {
+        if(new Date(new Date().getFullYear(), new Date().getMonth(), i).getDay() !== 0) workingDays++
+    }
+    workingDays = workingDays || 1 // Evitar división por cero
+    const realCurrentMonth = vVisitas.filter(vis => vis.estado === 'realizada' && new Date(vis.fecha_hora).getMonth() === new Date().getMonth()).length
+    const promDia = Number((realCurrentMonth / workingDays).toFixed(1))
+
+    return { ...v, nombreDisplay: v.nombre || v.email.split('@')[0], plan, real, cumpl, objLog, porcObj, promDia }
+  })
+
+  const maxPromedio = Math.max(...statsVendedores.map(s => s.promDia), 1)
 
   return (
     <main className="min-h-screen bg-[#f4f7f6] p-4 md:p-8">
@@ -156,12 +170,16 @@ export default function Gerencia() {
           </div>
         </div>
 
-        {/* CONTROLES PRINCIPALES (Sin el select) */}
+        {/* CONTROLES GLOBALES */}
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl ml-auto md:ml-0 w-full md:w-auto">
-             <button onClick={() => setVistaActiva('lista')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'lista' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
-             <button onClick={() => setVistaActiva('semana')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'semana' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
-             <button onClick={() => setVistaActiva('mes')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'mes' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
+          <div className="flex gap-3 items-center w-full md:w-auto px-2">
+            <label className="font-bold text-[#004848] text-xs uppercase tracking-wider">Equipo:</label>
+            <span className="bg-[#f4f7f6] rounded-xl p-2.5 text-sm font-bold text-[#004848]">{user.rol === 'super_gerencia' ? 'Todo el equipo' : 'Mi equipo'}</span>
+          </div>
+          <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl">
+             <button onClick={() => setVistaActiva('lista')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'lista' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
+             <button onClick={() => setVistaActiva('semana')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'semana' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
+             <button onClick={() => setVistaActiva('mes')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'mes' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
             <button onClick={() => setShowModal(true)} className="bg-[#88B830] text-[#004848] text-sm font-bold py-3 px-6 rounded-xl hover:bg-[#7aa62b] shadow-sm transition-colors w-full md:w-auto">+ Asignar visita</button>
@@ -169,32 +187,61 @@ export default function Gerencia() {
           </div>
         </div>
 
-        {/* METRICAS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Planificadas</p><p className="text-4xl font-bold text-[#004848]">{totalPlanificadas}</p></div>
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Realizadas</p><p className="text-4xl font-bold text-[#88B830]">{totalRealizadas}</p></div>
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Cumplimiento</p><p className="text-4xl font-bold text-[#004848]">{porcentajeCumplimiento}%</p></div>
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Duración Promedio</p><p className="text-4xl font-bold text-[#004848]">{duracionPromedio} <span className="text-sm font-bold text-gray-400">min</span></p></div>
+        {/* MÉTRICAS NUEVAS (Solo Gerencia) */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* Gráfico de Barras */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Ranking de Vendedores - Prom. Visitas/Día Hábil (Mes Actual)</h3>
+            <div className="flex flex-col gap-4">
+              {statsVendedores.map(v => (
+                <div key={v.id} className="flex items-center gap-4">
+                  <div className="w-32 text-right text-sm font-bold text-[#004848] truncate" title={v.nombreDisplay}>{v.nombreDisplay}</div>
+                  <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                    <div className="bg-[#88B830] h-full rounded-full transition-all duration-500" style={{ width: `${(v.promDia / maxPromedio) * 100}%` }}></div>
+                  </div>
+                  <div className="w-10 text-sm font-bold text-gray-500">{v.promDia}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tabla de Detalle */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Detalle por Vendedor (Histórico)</h3>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs">Vendedor</th>
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Plan.</th>
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Real.</th>
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Cumpl.</th>
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Obj. Log.</th>
+                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Obj.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsVendedores.map(v => (
+                  <tr key={v.id} className="border-b border-gray-50 last:border-none">
+                    <td className="py-3 font-bold text-[#004848]">{v.nombreDisplay}</td>
+                    <td className="py-3 text-center font-bold text-gray-600">{v.plan}</td>
+                    <td className="py-3 text-center font-bold text-[#88B830]">{v.real}</td>
+                    <td className="py-3 text-center font-bold text-[#004848]">{v.cumpl}%</td>
+                    <td className="py-3 text-center font-bold text-gray-600">{v.objLog}</td>
+                    <td className="py-3 text-center font-bold text-[#88B830]">{v.porcObj}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* BOTONERA DE FILTROS POR VENDEDOR */}
         <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">Filtro por Vendedor:</span>
-          
-          <button 
-            onClick={() => setVendedorSeleccionado('todos')}
-            className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-          >
-            Todos
-          </button>
-          
+          <button onClick={() => setVendedorSeleccionado('todos')} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>Todos</button>
           {vendedoresOrdenados.map(v => (
-            <button 
-              key={v.id}
-              onClick={() => setVendedorSeleccionado(v.id)}
-              className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}
-            >
-              {v.nombre || v.email.split('@')[0]}
+            <button key={v.id} onClick={() => setVendedorSeleccionado(v.id)} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}>
+              {v.nombreDisplay}
             </button>
           ))}
         </div>
@@ -221,7 +268,7 @@ export default function Gerencia() {
           </div>
         )}
 
-        {/* VISTA: MES */}
+        {/* VISTA: MES (6 columnas Lun-Sab) */}
         {vistaActiva === 'mes' && (
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
@@ -229,8 +276,8 @@ export default function Gerencia() {
               <h2 className="text-xl font-bold text-[#004848] capitalize" style={{fontFamily: 'var(--font-montserrat)'}}>{fechaCalendario.toLocaleString('es-AR', { month: 'long', year: 'numeric' })}</h2>
               <button onClick={() => cambiarMes(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
             </div>
-            <div className="grid grid-cols-7 gap-2">
-              {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
+            <div className="grid grid-cols-6 gap-2">
+              {['Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
               {diasMes.map((dia, idx) => (
                 <div key={idx} className={`min-h-[120px] p-2 border rounded-xl ${dia ? 'bg-white border-gray-100' : 'bg-gray-50 border-transparent'}`}>
                   {dia && (
@@ -251,19 +298,19 @@ export default function Gerencia() {
           </div>
         )}
 
-        {/* VISTA: SEMANA */}
+        {/* VISTA: SEMANA (6 columnas Lun-Sab) */}
         {vistaActiva === 'semana' && (
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
              <div className="flex justify-between items-center mb-8 min-w-[700px]">
               <button onClick={() => cambiarSemanaCal(-1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
-              <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[6].toLocaleDateString('es-AR')}</h2>
+              <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[5].toLocaleDateString('es-AR')}</h2>
               <button onClick={() => cambiarSemanaCal(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
             </div>
-            <div className="grid grid-cols-7 gap-4 min-w-[700px]">
+            <div className="grid grid-cols-6 gap-4 min-w-[700px]">
               {diasSemanaCal.map((dia, idx) => (
                 <div key={idx} className="flex flex-col gap-3">
                   <div className={`text-center pb-3 border-b-2 ${esMismoDia(dia, new Date()) ? 'border-[#88B830]' : 'border-gray-50'}`}>
-                    <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][idx]}</span>
+                    <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb'][idx]}</span>
                     <span className={`text-2xl font-bold ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-600'}`}>{dia.getDate()}</span>
                   </div>
                   <div className="flex flex-col gap-2.5 min-h-[300px]">
@@ -281,6 +328,8 @@ export default function Gerencia() {
           </div>
         )}
 
+        {/* MODALES OMITIDOS PARA BREVEDAD (Asignar y Detalle siguen idénticos al anterior) */}
+        {/* Aquí van los 2 modales de la versión anterior */}
         {/* MODAL ASIGNAR VISITA */}
         {showModal && (
           <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -312,7 +361,7 @@ export default function Gerencia() {
           </div>
         )}
 
-        {/* NUEVO MODAL: DETALLE DE VISITA */}
+        {/* MODAL DETALLE DE VISITA */}
         {visitaDetalle && (
           <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-8 relative">
@@ -326,7 +375,6 @@ export default function Gerencia() {
               </div>
               
               <div className="grid gap-4 text-[#004848]">
-                
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Médico e Institución</p>
                     <p className="font-bold text-xl mb-1">{visitaDetalle.medico}</p>
@@ -356,7 +404,6 @@ export default function Gerencia() {
                   </div>
                 )}
                 
-                {/* Resultados si está cerrada */}
                 {visitaDetalle.estado === 'realizada' && (
                   <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
                     <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
@@ -376,7 +423,7 @@ export default function Gerencia() {
                 
                 {(visitaDetalle.estado === 'cancelada' || visitaDetalle.estado === 'reprogramada') && (
                   <div className="bg-orange-50 p-5 rounded-xl border border-orange-200">
-                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Motivo / Detalles</p>
+                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Detalles / Reprogramación</p>
                     <p className="font-bold text-orange-900">{visitaDetalle.resultado_motivo || '-'}</p>
                   </div>
                 )}
@@ -384,7 +431,6 @@ export default function Gerencia() {
             </div>
           </div>
         )}
-
       </div>
       <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}} />
     </main>

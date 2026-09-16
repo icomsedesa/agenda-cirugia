@@ -14,7 +14,7 @@ export default function Dashboard() {
 
   const [showModal, setShowModal] = useState(false)
   const [visitaACerrar, setVisitaACerrar] = useState<any>(null)
-  const [visitaDetalle, setVisitaDetalle] = useState<any>(null) // Nuevo estado para detalle
+  const [visitaDetalle, setVisitaDetalle] = useState<any>(null)
   
   const [vistaActiva, setVistaActiva] = useState<'lista' | 'semana' | 'mes'>('lista')
   const [fechaCalendario, setFechaCalendario] = useState(new Date()) 
@@ -68,28 +68,32 @@ export default function Dashboard() {
   const esMismoDia = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
   const getLunes = (d: Date) => { const dd = new Date(d); const day = dd.getDay(); const diff = dd.getDate() - day + (day === 0 ? -6 : 1); return new Date(dd.getFullYear(), dd.getMonth(), diff) }
 
-  // LISTA
+  // LISTA 6 DIAS
   const lunesSemanaLista = getLunes(fechaBase)
-  const diasSemanaLista = Array.from({ length: 5 }).map((_, i) => { const d = new Date(lunesSemanaLista); d.setDate(d.getDate() + i); return d })
+  const diasSemanaLista = Array.from({ length: 6 }).map((_, i) => { const d = new Date(lunesSemanaLista); d.setDate(d.getDate() + i); return d })
   const cambiarSemanaLista = (dias: number) => { const nuevaFecha = new Date(fechaBase); nuevaFecha.setDate(nuevaFecha.getDate() + dias); setFechaBase(nuevaFecha); setDiaSeleccionado(getLunes(nuevaFecha)) }
-  const visitasSemanaLista = visitas.filter(v => { const f = new Date(v.fecha_hora); const finSemana = new Date(lunesSemanaLista); finSemana.setDate(finSemana.getDate() + 5); return f >= lunesSemanaLista && f < finSemana })
+  const visitasSemanaLista = visitas.filter(v => { const f = new Date(v.fecha_hora); const finSemana = new Date(lunesSemanaLista); finSemana.setDate(finSemana.getDate() + 6); return f >= lunesSemanaLista && f < finSemana })
   const visitasDiaLista = visitasSemanaLista.filter(v => esMismoDia(new Date(v.fecha_hora), diaSeleccionado))
   const realizadasSemana = visitasSemanaLista.filter(v => v.estado === 'realizada').length
 
-  // MES
+  // MES 6 DIAS
   const year = fechaCalendario.getFullYear()
   const month = fechaCalendario.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   let firstDay = new Date(year, month, 1).getDay()
-  firstDay = firstDay === 0 ? 6 : firstDay - 1
+  if (firstDay === 0) firstDay = 1
+  firstDay = firstDay - 1
   const diasMes = []
   for (let i = 0; i < firstDay; i++) diasMes.push(null)
-  for (let i = 1; i <= daysInMonth; i++) diasMes.push(new Date(year, month, i))
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(year, month, i)
+    if (d.getDay() !== 0) diasMes.push(d)
+  }
   const cambiarMes = (offset: number) => setFechaCalendario(new Date(year, month + offset, 1))
 
-  // SEMANA
+  // SEMANA 6 DIAS
   const lunesSemanaCal = getLunes(fechaCalendario)
-  const diasSemanaCal = Array.from({length: 7}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
+  const diasSemanaCal = Array.from({length: 6}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
   const cambiarSemanaCal = (offset: number) => { const d = new Date(fechaCalendario); d.setDate(d.getDate() + (offset * 7)); setFechaCalendario(d) }
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
@@ -113,10 +117,12 @@ export default function Dashboard() {
     } else { alert("Navegador sin GPS.") }
   }
 
+  // AL CERRAR, GUARDAR REPROGRAMACIÓN
   const procesarCierre = async (e: React.FormEvent) => {
     e.preventDefault()
     if (cierreData.resultado === 'reprogramada') {
-      await supabase.from('visitas').update({ estado: 'reprogramada' }).eq('id', visitaACerrar.id)
+      const notaReprogramacion = `Reprogramada para el ${new Date(cierreData.nuevaFecha).toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' })}`
+      await supabase.from('visitas').update({ estado: 'reprogramada', resultado_motivo: notaReprogramacion }).eq('id', visitaACerrar.id)
       await supabase.from('visitas').insert({ vendedor_id: user.id, medico: visitaACerrar.medico, institucion: visitaACerrar.institucion, servicio: visitaACerrar.servicio, objetivo: visitaACerrar.objetivo, fecha_hora: new Date(cierreData.nuevaFecha).toISOString(), direccion: visitaACerrar.direccion, notas: visitaACerrar.notas, estado: 'pendiente', reprogramada_desde_id: visitaACerrar.id })
     } else {
       await supabase.from('visitas').update({ estado: cierreData.resultado, resultado_duracion: cierreData.resultado === 'realizada' ? cierreData.duracion : null, resultado_logrado: cierreData.resultado === 'realizada' ? (cierreData.logrado === 'si') : null, resultado_takeaways: cierreData.resultado === 'realizada' ? cierreData.takeaways : null, resultado_motivo: cierreData.motivo, ubicacion_lat: cierreData.lat, ubicacion_lng: cierreData.lng }).eq('id', visitaACerrar.id)
@@ -136,7 +142,7 @@ export default function Dashboard() {
 
       <div className="max-w-6xl mx-auto">
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 gap-4 border-l-4 !border-l-[#88B830]">
           <div>
             <h1 className="text-2xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>
               Mi Agenda <span className="opacity-60 font-medium">| Cirugía</span>
@@ -212,7 +218,7 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* VISTA: MES */}
+        {/* VISTA: MES (6 columnas) */}
         {vistaActiva === 'mes' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
@@ -220,8 +226,8 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold text-[#004848] capitalize" style={{fontFamily: 'var(--font-montserrat)'}}>{fechaCalendario.toLocaleString('es-AR', { month: 'long', year: 'numeric' })}</h2>
               <button onClick={() => cambiarMes(1)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
             </div>
-            <div className="grid grid-cols-7 gap-2">
-              {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
+            <div className="grid grid-cols-6 gap-2">
+              {['Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
               {diasMes.map((dia, idx) => (
                 <div key={idx} className={`min-h-[120px] p-2 border rounded-xl ${dia ? 'bg-white border-gray-100' : 'bg-gray-50 border-transparent'}`}>
                   {dia && (
@@ -242,19 +248,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* VISTA: SEMANA */}
+        {/* VISTA: SEMANA (6 columnas) */}
         {vistaActiva === 'semana' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
              <div className="flex justify-between items-center mb-8 min-w-[700px]">
               <button onClick={() => cambiarSemanaCal(-1)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
-              <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[6].toLocaleDateString('es-AR')}</h2>
+              <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[5].toLocaleDateString('es-AR')}</h2>
               <button onClick={() => cambiarSemanaCal(1)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
             </div>
-            <div className="grid grid-cols-7 gap-4 min-w-[700px]">
+            <div className="grid grid-cols-6 gap-4 min-w-[700px]">
               {diasSemanaCal.map((dia, idx) => (
                 <div key={idx} className="flex flex-col gap-3">
                   <div className={`text-center pb-3 border-b-2 ${esMismoDia(dia, new Date()) ? 'border-[#88B830]' : 'border-gray-50'}`}>
-                    <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][idx]}</span>
+                    <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb'][idx]}</span>
                     <span className={`text-2xl font-bold ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-600'}`}>{dia.getDate()}</span>
                   </div>
                   <div className="flex flex-col gap-2.5 min-h-[300px]">
@@ -275,6 +281,7 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* MODALES OCULTOS PARA BREVEDAD (NUEVA VISITA Y CERRAR VISITA, SIGUEN IDÉNTICOS) */}
         {/* MODAL NUEVA VISITA */}
         {showModal && (
           <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -339,7 +346,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* NUEVO MODAL: DETALLE DE VISITA (VENDEDOR) */}
+        {/* MODAL DETALLE DE VISITA */}
         {visitaDetalle && (
           <div className="fixed inset-0 bg-[#004848]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-8 relative">
@@ -377,7 +384,6 @@ export default function Dashboard() {
                   </div>
                 )}
                 
-                {/* Resultados si está cerrada */}
                 {visitaDetalle.estado === 'realizada' && (
                   <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
                     <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
@@ -397,7 +403,7 @@ export default function Dashboard() {
                 
                 {(visitaDetalle.estado === 'cancelada' || visitaDetalle.estado === 'reprogramada') && (
                   <div className="bg-orange-50 p-5 rounded-xl border border-orange-200">
-                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Motivo / Detalles</p>
+                    <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-2">Detalles / Reprogramación</p>
                     <p className="font-bold text-orange-900">{visitaDetalle.resultado_motivo || '-'}</p>
                   </div>
                 )}
