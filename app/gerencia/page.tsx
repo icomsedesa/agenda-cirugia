@@ -21,6 +21,7 @@ export default function Gerencia() {
   
   const [vistaActiva, setVistaActiva] = useState<'lista' | 'semana' | 'mes'>('lista')
   const [fechaCalendario, setFechaCalendario] = useState(new Date())
+  const [searchTerm, setSearchTerm] = useState('') // NUEVO ESTADO: Buscador
   
   const router = useRouter()
 
@@ -88,22 +89,16 @@ export default function Gerencia() {
     cargarVisitas()
   }
 
-  // NUEVA FUNCIÓN: ELIMINAR VISITA (SOLO FEDERICO)
   const eliminarVisita = async (id: string) => {
-    if (window.confirm("⚠️ ¿Estás seguro de eliminar esta visita? Esta acción no se puede deshacer y borrará la visita del historial y de las métricas.")) {
+    if (window.confirm("⚠️ ¿Estás seguro de eliminar esta visita? Esta acción no se puede deshacer.")) {
       const { error } = await supabase.from('visitas').delete().eq('id', id)
-      if (!error) {
-        setVisitaDetalle(null)
-        cargarVisitas()
-      } else {
-        alert("Error al eliminar: " + error.message)
-      }
+      if (!error) { setVisitaDetalle(null); cargarVisitas() }
+      else alert("Error al eliminar: " + error.message)
     }
   }
 
   if (cargando) return <div className="p-8 text-center text-[#004848] font-bold tracking-wide">Cargando Panel Gerencial...</div>
 
-  // VALIDACIÓN EXCLUSIVA PARA FEDERICO
   const esFederico = user?.email?.toLowerCase().startsWith('federico@')
 
   let listaVendedoresPermitidos = perfiles
@@ -123,11 +118,17 @@ export default function Gerencia() {
     ? visitas.filter(v => listaVendedoresPermitidos.some(p => p.id === v.vendedor_id))
     : visitas.filter(v => v.vendedor_id === vendedorSeleccionado)
 
-  // LOGICA CALENDARIO 6 DÍAS (Lun-Sab)
+  // LOGICA BUSCADOR
+  const isSearching = searchTerm.trim().length > 0
+  const searchResults = visitasFiltradas.filter(v => 
+    v.medico.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (v.institucion && v.institucion.toLowerCase().includes(searchTerm.toLowerCase()))
+  ).sort((a, b) => new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime())
+
+  // LOGICA CALENDARIO 6 DÍAS
   const esMismoDia = (d1: Date, d2: Date) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
   const getLunes = (d: Date) => { const dd = new Date(d); const day = dd.getDay(); const diff = dd.getDate() - day + (day === 0 ? -6 : 1); return new Date(dd.getFullYear(), dd.getMonth(), diff) }
   
-  // Mes 6 días
   const year = fechaCalendario.getFullYear()
   const month = fechaCalendario.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -138,10 +139,9 @@ export default function Gerencia() {
   for (let i = 0; i < firstDay; i++) diasMes.push(null)
   for (let i = 1; i <= daysInMonth; i++) {
     const d = new Date(year, month, i)
-    if (d.getDay() !== 0) diasMes.push(d) // Excluir domingo
+    if (d.getDay() !== 0) diasMes.push(d)
   }
 
-  // Semana 6 días
   const lunesSemanaCal = getLunes(fechaCalendario)
   const diasSemanaCal = Array.from({length: 6}).map((_, i) => { const d = new Date(lunesSemanaCal); d.setDate(d.getDate() + i); return d })
   
@@ -185,16 +185,17 @@ export default function Gerencia() {
           </div>
         </div>
 
-        {/* CONTROLES GLOBALES */}
-        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-3 items-center w-full md:w-auto px-2">
-            <label className="font-bold text-[#004848] text-xs uppercase tracking-wider">Equipo:</label>
-            <span className="bg-[#f4f7f6] rounded-xl p-2.5 text-sm font-bold text-[#004848]">{user.rol === 'super_gerencia' ? 'Todo el equipo' : 'Mi equipo'}</span>
-          </div>
-          <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl">
-             <button onClick={() => setVistaActiva('lista')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'lista' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
-             <button onClick={() => setVistaActiva('semana')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'semana' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
-             <button onClick={() => setVistaActiva('mes')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${vistaActiva === 'mes' ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
+        {/* CONTROLES GLOBALES Y BUSCADOR */}
+        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto flex-1">
+            <div className="flex bg-[#f4f7f6] p-1.5 rounded-xl w-full md:w-auto">
+               <button onClick={() => {setVistaActiva('lista'); setSearchTerm('');}} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'lista' && !isSearching ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Lista</button>
+               <button onClick={() => {setVistaActiva('semana'); setSearchTerm('');}} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'semana' && !isSearching ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Semana</button>
+               <button onClick={() => {setVistaActiva('mes'); setSearchTerm('');}} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1 ${vistaActiva === 'mes' && !isSearching ? 'bg-white shadow-sm text-[#004848]' : 'text-gray-500 hover:text-gray-700'}`}>Mes</button>
+            </div>
+            <div className="w-full md:w-64">
+              <input type="text" placeholder="🔍 Buscar médico o inst..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-[#f4f7f6] border-none rounded-xl p-2.5 text-sm font-bold text-[#004848] focus:ring-[#88B830]" />
+            </div>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
             <button onClick={() => setShowModal(true)} className="bg-[#88B830] text-[#004848] text-sm font-bold py-3 px-6 rounded-xl hover:bg-[#7aa62b] shadow-sm transition-colors w-full md:w-auto">+ Asignar visita</button>
@@ -202,51 +203,53 @@ export default function Gerencia() {
           </div>
         </div>
 
-        {/* MÉTRICAS NUEVAS (Solo Gerencia) */}
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Ranking de Vendedores - Prom. Visitas/Día Hábil (Mes Actual)</h3>
-            <div className="flex flex-col gap-4">
-              {statsVendedores.map(v => (
-                <div key={v.id} className="flex items-center gap-4">
-                  <div className="w-32 text-right text-sm font-bold text-[#004848] truncate" title={v.nombreDisplay}>{v.nombreDisplay}</div>
-                  <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
-                    <div className="bg-[#88B830] h-full rounded-full transition-all duration-500" style={{ width: `${(v.promDia / maxPromedio) * 100}%` }}></div>
+        {/* MÉTRICAS (Se ocultan si el buscador está activo para ahorrar espacio) */}
+        {!isSearching && (
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Ranking de Vendedores - Prom. Visitas/Día Hábil (Mes Actual)</h3>
+              <div className="flex flex-col gap-4">
+                {statsVendedores.map(v => (
+                  <div key={v.id} className="flex items-center gap-4">
+                    <div className="w-32 text-right text-sm font-bold text-[#004848] truncate" title={v.nombreDisplay}>{v.nombreDisplay}</div>
+                    <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                      <div className="bg-[#88B830] h-full rounded-full transition-all duration-500" style={{ width: `${(v.promDia / maxPromedio) * 100}%` }}></div>
+                    </div>
+                    <div className="w-10 text-sm font-bold text-gray-500">{v.promDia}</div>
                   </div>
-                  <div className="w-10 text-sm font-bold text-gray-500">{v.promDia}</div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Detalle por Vendedor (Histórico)</h3>
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs">Vendedor</th>
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Plan.</th>
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Real.</th>
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Cumpl.</th>
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Obj. Log.</th>
+                    <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Obj.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsVendedores.map(v => (
+                    <tr key={v.id} className="border-b border-gray-50 last:border-none">
+                      <td className="py-3 font-bold text-[#004848]">{v.nombreDisplay}</td>
+                      <td className="py-3 text-center font-bold text-gray-600">{v.plan}</td>
+                      <td className="py-3 text-center font-bold text-[#88B830]">{v.real}</td>
+                      <td className="py-3 text-center font-bold text-[#004848]">{v.cumpl}%</td>
+                      <td className="py-3 text-center font-bold text-gray-600">{v.objLog}</td>
+                      <td className="py-3 text-center font-bold text-[#88B830]">{v.porcObj}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Detalle por Vendedor (Histórico)</h3>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs">Vendedor</th>
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Plan.</th>
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Real.</th>
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Cumpl.</th>
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">Obj. Log.</th>
-                  <th className="pb-3 text-gray-400 font-bold uppercase text-xs text-center">% Obj.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statsVendedores.map(v => (
-                  <tr key={v.id} className="border-b border-gray-50 last:border-none">
-                    <td className="py-3 font-bold text-[#004848]">{v.nombreDisplay}</td>
-                    <td className="py-3 text-center font-bold text-gray-600">{v.plan}</td>
-                    <td className="py-3 text-center font-bold text-[#88B830]">{v.real}</td>
-                    <td className="py-3 text-center font-bold text-[#004848]">{v.cumpl}%</td>
-                    <td className="py-3 text-center font-bold text-gray-600">{v.objLog}</td>
-                    <td className="py-3 text-center font-bold text-[#88B830]">{v.porcObj}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
 
         {/* BOTONERA DE FILTROS POR VENDEDOR */}
         <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
@@ -254,91 +257,88 @@ export default function Gerencia() {
           <button onClick={() => setVendedorSeleccionado('todos')} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>Todos</button>
           {vendedoresOrdenados.map(v => (
             <button key={v.id} onClick={() => setVendedorSeleccionado(v.id)} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}>
-              {v.nombreDisplay}
+              {v.nombre || v.email?.split('@')[0]}
             </button>
           ))}
         </div>
 
-        {/* VISTA: LISTA */}
-        {vistaActiva === 'lista' && (
-          <div className="grid gap-4">
-            {visitasFiltradas.map((visita) => {
-              const vendedor = perfiles.find(p => p.id === visita.vendedor_id)
-              return (
-                <div key={visita.id} onClick={() => setVisitaDetalle(visita)} className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 ${obtenerColorVendedor(visita.vendedor_id).split(' ')[0].replace('bg-', 'border-')} flex flex-col md:flex-row justify-between md:items-center gap-4 hover:shadow-md transition-shadow cursor-pointer`}>
-                  <div>
-                    <h3 className="font-bold text-[#004848] text-lg">{visita.medico}</h3>
-                    <p className="text-sm text-gray-500 font-bold">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p>
-                    <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">Vendedor: {vendedor?.nombre || vendedor?.email}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                     <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visita.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visita.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visita.estado.toUpperCase()}</span>
-                    <span className="text-xs font-bold text-gray-400">{new Date(visita.fecha_hora).toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' })}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* VISTA: MES (6 columnas Lun-Sab) */}
-        {vistaActiva === 'mes' && (
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
-              <button onClick={() => cambiarMes(-1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
-              <h2 className="text-xl font-bold text-[#004848] capitalize" style={{fontFamily: 'var(--font-montserrat)'}}>{fechaCalendario.toLocaleString('es-AR', { month: 'long', year: 'numeric' })}</h2>
-              <button onClick={() => cambiarMes(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
+        {/* VISTA: RESULTADOS DEL BUSCADOR */}
+        {isSearching ? (
+          <div>
+            <h2 className="text-lg font-bold text-[#004848] mb-4" style={{fontFamily: 'var(--font-montserrat)'}}>Resultados para "{searchTerm}" ({searchResults.length})</h2>
+            <div className="grid gap-4">
+              {searchResults.length === 0 ? <p className="text-center text-gray-400 bg-white p-10 rounded-2xl border border-dashed border-gray-200 font-bold">No se encontraron visitas.</p> : searchResults.map(renderTarjetaVisita)}
             </div>
-            <div className="grid grid-cols-6 gap-2">
-              {['Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
-              {diasMes.map((dia, idx) => (
-                <div key={idx} className={`min-h-[120px] p-2 border rounded-xl ${dia ? 'bg-white border-gray-100' : 'bg-gray-50 border-transparent'}`}>
-                  {dia && (
-                    <>
-                      <div className="text-right text-xs font-bold text-gray-400 mb-2 pr-1">{dia.getDate()}</div>
-                      <div className="flex flex-col gap-1.5 max-h-[100px] overflow-y-auto custom-scrollbar">
+          </div>
+        ) : (
+          <>
+            {/* VISTA: LISTA */}
+            {vistaActiva === 'lista' && (
+              <div className="grid gap-4">
+                {visitasFiltradas.length === 0 ? <p className="text-center text-gray-400 bg-white p-10 rounded-2xl border border-dashed border-gray-200 font-bold">Sin visitas programadas.</p> : visitasFiltradas.map(renderTarjetaVisita)}
+              </div>
+            )}
+
+            {/* VISTA: MES */}
+            {vistaActiva === 'mes' && (
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="flex justify-between items-center mb-6">
+                  <button onClick={() => cambiarMes(-1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
+                  <h2 className="text-xl font-bold text-[#004848] capitalize" style={{fontFamily: 'var(--font-montserrat)'}}>{fechaCalendario.toLocaleString('es-AR', { month: 'long', year: 'numeric' })}</h2>
+                  <button onClick={() => cambiarMes(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                  {['Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => <div key={d} className="text-center font-bold text-gray-400 text-xs py-2">{d}</div>)}
+                  {diasMes.map((dia, idx) => (
+                    <div key={idx} className={`min-h-[120px] p-2 border rounded-xl ${dia ? 'bg-white border-gray-100' : 'bg-gray-50 border-transparent'}`}>
+                      {dia && (
+                        <>
+                          <div className="text-right text-xs font-bold text-gray-400 mb-2 pr-1">{dia.getDate()}</div>
+                          <div className="flex flex-col gap-1.5 max-h-[100px] overflow-y-auto custom-scrollbar">
+                            {visitasFiltradas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
+                              <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-[10px] font-bold leading-tight p-1.5 rounded-lg border truncate cursor-pointer hover:opacity-75 ${obtenerColorVendedor(v.vendedor_id)}`} title={`${v.medico} - ${v.institucion}`}>
+                                <span className="opacity-70 mr-1">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</span>{v.medico}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* VISTA: SEMANA */}
+            {vistaActiva === 'semana' && (
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
+                 <div className="flex justify-between items-center mb-8 min-w-[700px]">
+                  <button onClick={() => cambiarSemanaCal(-1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
+                  <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[5].toLocaleDateString('es-AR')}</h2>
+                  <button onClick={() => cambiarSemanaCal(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
+                </div>
+                <div className="grid grid-cols-6 gap-4 min-w-[700px]">
+                  {diasSemanaCal.map((dia, idx) => (
+                    <div key={idx} className="flex flex-col gap-3">
+                      <div className={`text-center pb-3 border-b-2 ${esMismoDia(dia, new Date()) ? 'border-[#88B830]' : 'border-gray-50'}`}>
+                        <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb'][idx]}</span>
+                        <span className={`text-2xl font-bold ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-600'}`}>{dia.getDate()}</span>
+                      </div>
+                      <div className="flex flex-col gap-2.5 min-h-[300px]">
                         {visitasFiltradas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                          <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-[10px] font-bold leading-tight p-1.5 rounded-lg border truncate cursor-pointer hover:opacity-75 ${obtenerColorVendedor(v.vendedor_id)}`} title={`${v.medico} - ${v.institucion}`}>
-                            <span className="opacity-70 mr-1">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</span>{v.medico}
+                          <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-xs p-3 rounded-xl border shadow-sm hover:opacity-80 transition-opacity cursor-pointer ${obtenerColorVendedor(v.vendedor_id)}`}>
+                            <div className="font-bold truncate text-[13px]" title={v.medico}>{v.medico}</div>
+                            <div className="truncate opacity-70 font-bold mt-0.5" title={v.institucion}>{v.institucion}</div>
+                            <div className="mt-2 font-bold opacity-60">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
                           </div>
                         ))}
                       </div>
-                    </>
-                  )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VISTA: SEMANA (6 columnas Lun-Sab) */}
-        {vistaActiva === 'semana' && (
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
-             <div className="flex justify-between items-center mb-8 min-w-[700px]">
-              <button onClick={() => cambiarSemanaCal(-1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&lt;</button>
-              <h2 className="text-xl font-bold text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Semana del {diasSemanaCal[0].toLocaleDateString('es-AR')} al {diasSemanaCal[5].toLocaleDateString('es-AR')}</h2>
-              <button onClick={() => cambiarSemanaCal(1)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors font-bold">&gt;</button>
-            </div>
-            <div className="grid grid-cols-6 gap-4 min-w-[700px]">
-              {diasSemanaCal.map((dia, idx) => (
-                <div key={idx} className="flex flex-col gap-3">
-                  <div className={`text-center pb-3 border-b-2 ${esMismoDia(dia, new Date()) ? 'border-[#88B830]' : 'border-gray-50'}`}>
-                    <span className={`block text-xs font-bold mb-1 ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-400'}`}>{['Lun','Mar','Mié','Jue','Vie','Sáb'][idx]}</span>
-                    <span className={`text-2xl font-bold ${esMismoDia(dia, new Date()) ? 'text-[#004848]' : 'text-gray-600'}`}>{dia.getDate()}</span>
-                  </div>
-                  <div className="flex flex-col gap-2.5 min-h-[300px]">
-                    {visitasFiltradas.filter(v => esMismoDia(new Date(v.fecha_hora), dia)).map(v => (
-                      <div key={v.id} onClick={() => setVisitaDetalle(v)} className={`text-xs p-3 rounded-xl border shadow-sm hover:opacity-80 transition-opacity cursor-pointer ${obtenerColorVendedor(v.vendedor_id)}`}>
-                        <div className="font-bold truncate text-[13px]" title={v.medico}>{v.medico}</div>
-                        <div className="truncate opacity-70 font-bold mt-0.5" title={v.institucion}>{v.institucion}</div>
-                        <div className="mt-2 font-bold opacity-60">{new Date(v.fecha_hora).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* MODAL ASIGNAR VISITA */}
@@ -455,4 +455,22 @@ export default function Gerencia() {
       <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }`}} />
     </main>
   )
+
+  // Sub-componente para renderizar la tarjeta en las listas (Evita repetir código)
+  function renderTarjetaVisita(visita: any) {
+    const vendedor = perfiles.find(p => p.id === visita.vendedor_id)
+    return (
+      <div key={visita.id} onClick={() => setVisitaDetalle(visita)} className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 ${obtenerColorVendedor(visita.vendedor_id).split(' ')[0].replace('bg-', 'border-')} flex flex-col md:flex-row justify-between md:items-center gap-4 hover:shadow-md transition-shadow cursor-pointer`}>
+        <div>
+          <h3 className="font-bold text-[#004848] text-lg">{visita.medico}</h3>
+          <p className="text-sm text-gray-500 font-bold">{visita.institucion} {visita.servicio && `- ${visita.servicio}`}</p>
+          <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">Vendedor: {vendedor?.nombre || vendedor?.email}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+           <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visita.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visita.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visita.estado.toUpperCase()}</span>
+          <span className="text-xs font-bold text-gray-400">{new Date(visita.fecha_hora).toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' })}</span>
+        </div>
+      </div>
+    )
+  }
 }
