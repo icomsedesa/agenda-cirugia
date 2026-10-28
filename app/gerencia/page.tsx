@@ -88,7 +88,23 @@ export default function Gerencia() {
     cargarVisitas()
   }
 
+  // NUEVA FUNCIÓN: ELIMINAR VISITA (SOLO FEDERICO)
+  const eliminarVisita = async (id: string) => {
+    if (window.confirm("⚠️ ¿Estás seguro de eliminar esta visita? Esta acción no se puede deshacer y borrará la visita del historial y de las métricas.")) {
+      const { error } = await supabase.from('visitas').delete().eq('id', id)
+      if (!error) {
+        setVisitaDetalle(null)
+        cargarVisitas()
+      } else {
+        alert("Error al eliminar: " + error.message)
+      }
+    }
+  }
+
   if (cargando) return <div className="p-8 text-center text-[#004848] font-bold tracking-wide">Cargando Panel Gerencial...</div>
+
+  // VALIDACIÓN EXCLUSIVA PARA FEDERICO
+  const esFederico = user?.email?.toLowerCase().startsWith('federico@')
 
   let listaVendedoresPermitidos = perfiles
   if (user.rol === 'gerencia') {
@@ -141,7 +157,6 @@ export default function Gerencia() {
     const objLog = vVisitas.filter(vis => vis.resultado_logrado === true).length
     const porcObj = real > 0 ? Math.round((objLog / real) * 100) : 0
 
-    // Promedio Visitas / Día Hábil
     const daysPassed = new Date().getDate()
     let workingDays = 0
     for(let i = 1; i <= daysPassed; i++) {
@@ -189,7 +204,6 @@ export default function Gerencia() {
 
         {/* MÉTRICAS NUEVAS (Solo Gerencia) */}
         <div className="grid md:grid-cols-2 gap-6 mb-6">
-          {/* Gráfico de Barras */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Ranking de Vendedores - Prom. Visitas/Día Hábil (Mes Actual)</h3>
             <div className="flex flex-col gap-4">
@@ -205,7 +219,6 @@ export default function Gerencia() {
             </div>
           </div>
 
-          {/* Tabla de Detalle */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Detalle por Vendedor (Histórico)</h3>
             <table className="w-full text-left text-sm">
@@ -241,7 +254,7 @@ export default function Gerencia() {
           <button onClick={() => setVendedorSeleccionado('todos')} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all ${vendedorSeleccionado === 'todos' ? 'bg-[#004848] text-white border-[#004848]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>Todos</button>
           {vendedoresOrdenados.map(v => (
             <button key={v.id} onClick={() => setVendedorSeleccionado(v.id)} className={`text-xs font-bold px-4 py-2 rounded-xl border shadow-sm transition-all cursor-pointer ${obtenerColorVendedor(v.id)} ${vendedorSeleccionado !== 'todos' && vendedorSeleccionado !== v.id ? 'opacity-40 grayscale hover:grayscale-0' : 'hover:scale-105'}`}>
-              {v.nombre || v.email?.split('@')[0]}
+              {v.nombreDisplay}
             </button>
           ))}
         </div>
@@ -367,13 +380,20 @@ export default function Gerencia() {
               
               <h3 className="text-2xl font-bold mb-2 text-[#004848]" style={{fontFamily: 'var(--font-montserrat)'}}>Detalle de Visita</h3>
               
-              <div className="flex gap-3 items-center mb-6 border-b border-gray-100 pb-4">
-                 <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visitaDetalle.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visitaDetalle.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visitaDetalle.estado.toUpperCase()}</span>
-                 <span className="text-sm font-bold text-gray-400">{new Date(visitaDetalle.fecha_hora).toLocaleString('es-AR', { dateStyle:'long', timeStyle:'short' })}</span>
+              <div className="flex gap-3 items-center justify-between mb-6 border-b border-gray-100 pb-4">
+                 <div>
+                   <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${visitaDetalle.estado === 'pendiente' ? 'bg-orange-50 text-orange-700 border-orange-200' : visitaDetalle.estado === 'realizada' ? 'bg-[#f0f5ec] text-[#004848] border-[#88B830]' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>{visitaDetalle.estado.toUpperCase()}</span>
+                   <span className="text-sm font-bold text-gray-400 ml-3">{new Date(visitaDetalle.fecha_hora).toLocaleString('es-AR', { dateStyle:'long', timeStyle:'short' })}</span>
+                 </div>
+                 {/* BOTÓN ELIMINAR EXCLUSIVO PARA FEDERICO */}
+                 {esFederico && (
+                   <button onClick={() => eliminarVisita(visitaDetalle.id)} className="text-xs font-bold bg-white hover:bg-red-50 text-red-600 px-3 py-1.5 rounded-lg transition-colors border border-red-200 shadow-sm">
+                     Eliminar
+                   </button>
+                 )}
               </div>
               
               <div className="grid gap-4 text-[#004848]">
-                
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Médico e Institución</p>
                     <p className="font-bold text-xl mb-1">{visitaDetalle.medico}</p>
@@ -399,11 +419,10 @@ export default function Gerencia() {
                 {visitaDetalle.notas && (
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notas Internas</p>
-                      <p className="font-bold opacity-90">{visitaDetalle.notas}</p>
+                      <p className="font-bold opacity-90 whitespace-pre-line">{visitaDetalle.notas}</p>
                   </div>
                 )}
                 
-                {/* Resultados si está cerrada */}
                 {visitaDetalle.estado === 'realizada' && (
                   <div className="bg-[#f0f5ec] p-5 rounded-xl border border-[#88B830]">
                     <p className="text-xs font-bold text-[#004848] uppercase tracking-wider mb-3">Resultado de la visita</p>
